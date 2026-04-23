@@ -1,3 +1,5 @@
+import Markdown from "react-markdown";
+
 function safeUrl(url) {
   try {
     const parsed = new URL(url);
@@ -12,7 +14,13 @@ function safeUrl(url) {
 export default function MessageBubble({ role, text, references }) {
   return (
     <div className={`bubble-wrapper ${role}`}>
-      <div className={`bubble ${role}`}>{text}</div>
+      <div className={`bubble ${role}`}>
+        {role === "assistant" ? (
+          <Markdown className="md">{text}</Markdown>
+        ) : (
+          text
+        )}
+      </div>
       {references && references.length > 0 && (
         <div className="references">
           {references.map((ref, i) => {
