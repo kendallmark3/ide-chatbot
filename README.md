@@ -2,6 +2,8 @@
 
 A full-stack AI chatbot that answers questions about Intent-Driven Engineering, built with React + FastAPI + Anthropic Claude.
 
+**GitHub:** https://github.com/kendallmark3/ide-chatbot
+
 ---
 
 ## How It Works
@@ -20,7 +22,8 @@ A full-stack AI chatbot that answers questions about Intent-Driven Engineering, 
 │                                                                 │
 │   App.jsx          → manages chat state + send logic            │
 │   ChatWindow.jsx   → renders message bubbles                    │
-│   styles.css       → L'Oreal-inspired minimal theme             │
+│   MessageBubble.jsx → markdown rendering + token display        │
+│   styles.css       → minimal dark-gradient theme                │
 │                                                                 │
 │   POST /chat  ──────────────────────────────────────────────►  │
 └──────────────────────────┬──────────────────────────────────────┘
@@ -31,10 +34,10 @@ A full-stack AI chatbot that answers questions about Intent-Driven Engineering, 
 │                   http://localhost:8000                         │
 │                                                                 │
 │   POST /chat                                                    │
-│     1. Validate request (Pydantic)                              │
+│     1. Validate request — 1 to 2000 chars (Pydantic)            │
 │     2. Call Anthropic API  ──────────────────────────────────►  │
 │     3. Run enrichment layer                                     │
-│     4. Return { answer, references }                            │
+│     4. Return { answer, references, usage }                     │
 │                                                                 │
 │   GET /health  → verify API key + live Claude ping              │
 └──────────────────────────┬──────────────────────────────────────┘
@@ -63,24 +66,24 @@ App.jsx → fetch POST /chat
 FastAPI /chat endpoint
        │
        ├─► anthropic_client.py
-       │       └─► Claude API → returns answer text
+       │       └─► Claude API → returns { text, input_tokens, output_tokens }
        │
        └─► enrichment.py
                └─► scans message + answer for keywords
                    └─► appends matching reference links
        │
        ▼
-{ "answer": "...", "references": [...] }
+{ "answer": "...", "references": [...], "usage": { input_tokens, output_tokens } }
        │
        ▼
-React renders bubble + clickable links below response
+React renders markdown bubble + reference links + token count
 ```
 
 ---
 
 ### Enrichment Layer
 
-The enrichment layer scans both the user message and Claude's response for keywords and appends curated reference links automatically:
+Scans both the user message and Claude's response for keywords and appends curated reference links automatically:
 
 | Keyword detected | Reference added |
 |---|---|
@@ -91,30 +94,44 @@ The enrichment layer scans both the user message and Claude's response for keywo
 
 ---
 
+### Token Usage
+
+Every assistant response displays token counts below the bubble:
+
+```
+↑ 142 in · 87 out · 229 total tokens
+```
+
+**Cost estimate (claude-haiku-4-5):** ~$0.001 per conversation. 50,000 prompts ≈ $40–50 total.
+
+---
+
 ### File Structure
 
 ```
 bot/
 ├── backend/
-│   ├── main.py                   # FastAPI app, /chat and /health routes
+│   ├── main.py                   # FastAPI app — /chat and /health routes
 │   ├── services/
-│   │   ├── anthropic_client.py   # Claude API wrapper
+│   │   ├── anthropic_client.py   # Claude API wrapper, returns text + token usage
 │   │   └── enrichment.py        # keyword → reference link mapper
 │   ├── requirements.txt
 │   └── .env                     # ANTHROPIC_API_KEY (gitignored)
 │
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx               # chat state, send logic
+│   │   ├── App.jsx               # chat state, send logic, usage passthrough
 │   │   ├── components/
 │   │   │   ├── ChatWindow.jsx    # message list renderer
-│   │   │   └── MessageBubble.jsx # individual bubble + references
-│   │   └── styles.css
+│   │   │   └── MessageBubble.jsx # markdown bubble + references + token count
+│   │   └── styles.css            # markdown styles, token badge, bubble theme
 │   ├── vite.config.js            # proxies /chat → localhost:8000
-│   └── package.json
+│   └── package.json              # react-markdown included
 │
-└── .vscode/
-    └── settings.json             # enables .env injection in terminals
+├── .vscode/
+│   └── settings.json             # python.terminal.useEnvFile enabled
+├── intent.md                     # original intent file used to generate this app
+└── README.md
 ```
 
 ---
@@ -128,7 +145,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env            # add your ANTHROPIC_API_KEY
+cp .env.example .env            # paste your ANTHROPIC_API_KEY
 uvicorn main:app --reload
 ```
 
@@ -146,40 +163,43 @@ Frontend runs at **http://localhost:5173**
 
 ### 3. Verify API key
 
-Open **http://localhost:8000/health** — you should see:
-
-```json
-{
-  "status": "ok",
-  "api_key": "sk-ant-api03...xxxx",
-  "test_response": "API key works"
-}
+```bash
+curl http://localhost:8000/health
 ```
+
+Expected:
+```json
+{ "status": "ok", "test_response": "API key works" }
+```
+
+---
+
+## Security
+
+| Area | Implementation |
+|---|---|
+| CORS | Locked to `localhost:5173` / `5181`; override via `ALLOWED_ORIGINS` env var |
+| Input length | 1–2000 characters enforced via Pydantic `Field` |
+| API key | Never exposed in responses; only read server-side from `.env` |
+| Error handling | Internal exceptions return `502`, no stack traces leaked |
+| Reference URLs | Frontend validates `http/https` only; `rel="noopener noreferrer"` |
 
 ---
 
 ## Recommended Next Steps
 
-### Immediate improvements
-
-- [ ] **Persist chat history** — store conversations in `localStorage` so the session survives a page refresh
-- [ ] **Streaming responses** — use Anthropic's streaming API + SSE so the answer types out word-by-word instead of appearing all at once
-- [ ] **Error UI** — show a styled error state instead of plain text when the backend is unreachable
-
-### Quality & reliability
-
-- [ ] **Input validation** — enforce max message length on both frontend and backend
-- [ ] **Rate limiting** — add `slowapi` middleware to the FastAPI backend to prevent API key exhaustion
-- [ ] **Automated tests** — add `pytest` tests for `/chat` and `/health` using `httpx` and a mocked Anthropic client
-
 ### Features
+- [ ] **Conversation context** — pass full message history to Claude for coherent follow-ups
+- [ ] **Streaming responses** — SSE so answers type out word-by-word
+- [ ] **Persist chat** — store conversations in `localStorage`
+- [ ] **Expand enrichment keywords** — add `claude`, `vite`, `pydantic`, etc.
+- [ ] **Export transcript** — download chat as `.txt` or `.pdf`
 
-- [ ] **Conversation context** — pass the full message history to Claude instead of a single message so it can answer follow-up questions coherently
-- [ ] **Expand enrichment keywords** — add more keyword → link mappings (e.g. `claude`, `vite`, `pydantic`)
-- [ ] **Export transcript** — let users download the chat as a `.txt` or `.pdf`
+### Quality
+- [ ] **Rate limiting** — add `slowapi` to prevent API key exhaustion
+- [ ] **Automated tests** — `pytest` + `httpx` with mocked Anthropic client
 
-### Production readiness
-
-- [ ] **Environment-aware CORS** — replace `allow_origins=["*"]` with the specific frontend domain in production
-- [ ] **Docker Compose** — single `docker compose up` to start both services
+### Production
+- [ ] **Docker Compose** — single `docker compose up` for both services
 - [ ] **Deploy** — backend to AWS Fargate or Railway; frontend to Vercel or Netlify
+- [ ] **Set `ALLOWED_ORIGINS`** — restrict CORS to your production domain
