@@ -27,7 +27,7 @@ export default function App() {
       const data = await res.json();
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: data.answer, references: data.references },
+        { role: "assistant", text: data.answer, references: data.references, usage: data.usage },
       ]);
     } catch {
       setMessages((prev) => [

@@ -135,6 +135,13 @@ body {
 .references a:hover { text-decoration: underline; }
 .references a::before { content: "↗"; font-size: 0.7rem; }
 
+.token-usage {
+  font-size: 0.7rem;
+  color: #aaa;
+  margin-top: 4px;
+  padding-left: 2px;
+}
+
 .loading-dots {
   display: flex;
   gap: 5px;

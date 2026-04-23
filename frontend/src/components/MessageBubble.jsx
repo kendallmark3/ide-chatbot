@@ -11,12 +11,12 @@ function safeUrl(url) {
   }
 }
 
-export default function MessageBubble({ role, text, references }) {
+export default function MessageBubble({ role, text, references, usage }) {
   return (
     <div className={`bubble-wrapper ${role}`}>
       <div className={`bubble ${role}`}>
         {role === "assistant" ? (
-          <Markdown className="md">{text}</Markdown>
+          <div className="md"><Markdown>{text}</Markdown></div>
         ) : (
           text
         )}
@@ -31,6 +31,11 @@ export default function MessageBubble({ role, text, references }) {
               </a>
             ) : null;
           })}
+        </div>
+      )}
+      {usage && (
+        <div className="token-usage">
+          ↑ {usage.input_tokens} in · {usage.output_tokens} out · {usage.input_tokens + usage.output_tokens} total tokens
         </div>
       )}
     </div>

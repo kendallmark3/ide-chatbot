@@ -31,9 +31,14 @@ class Reference(BaseModel):
     url: str
 
 
+class TokenUsage(BaseModel):
+    input_tokens: int
+    output_tokens: int
+
 class ChatResponse(BaseModel):
     answer: str
     references: list[Reference]
+    usage: TokenUsage
 
 
 @app.get("/health")
@@ -42,8 +47,8 @@ def health_check():
     if not key:
         return {"status": "fail", "detail": "API key not configured"}
     try:
-        chat("Say 'API key works' in exactly those words.")
-        return {"status": "ok"}
+        result = chat("Say 'API key works' in exactly those words.")
+        return {"status": "ok", "test_response": result["text"]}
     except Exception:
         return {"status": "fail", "detail": "Claude API unreachable"}
 
@@ -51,8 +56,15 @@ def health_check():
 @app.post("/chat", response_model=ChatResponse)
 def chat_endpoint(req: ChatRequest):
     try:
-        answer = chat(req.message)
+        result = chat(req.message)
     except Exception:
         raise HTTPException(status_code=502, detail="AI service unavailable")
-    references = enrich(req.message, answer)
-    return ChatResponse(answer=answer, references=references)
+    references = enrich(req.message, result["text"])
+    return ChatResponse(
+        answer=result["text"],
+        references=references,
+        usage=TokenUsage(
+            input_tokens=result["input_tokens"],
+            output_tokens=result["output_tokens"],
+        ),
+    )

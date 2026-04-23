@@ -16,6 +16,7 @@ export default function ChatWindow({ messages, loading }) {
           role={msg.role}
           text={msg.text}
           references={msg.references}
+          usage={msg.usage}
         />
       ))}
       {loading && (
